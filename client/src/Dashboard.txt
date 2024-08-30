@@ -1,0 +1,246 @@
+<template>
+  <div class="container mt-5">
+    <h2 class="mb-4 text-center">Stock Dashboard</h2>
+    <button class="btn btn-danger" @click="handleLogout">Logout</button>
+    <h5 class="text-center mb-4">Hai, {{ username }}</h5>
+
+    <div class="mb-4 d-flex justify-content-between">
+      <input
+        v-model="searchQuery"
+        @input="searchItems"
+        type="text"
+        class="form-control"
+        placeholder="Search items..."
+        style="max-width: 300px"
+      />
+      <div>
+        <button class="btn btn-secondary me-2" @click="exportToCSV">
+          Export to CSV
+        </button>
+        <button class="btn btn-secondary me-2" @click="exportToPDF">
+          Export to PDF
+        </button>
+        <button class="btn btn-secondary" @click="printPage">Print</button>
+      </div>
+    </div>
+
+    <button class="btn btn-primary mb-4" @click="showAddItemModal = true">
+      Add New Item
+    </button>
+
+    <AddItemModal
+      v-if="showAddItemModal"
+      @close="showAddItemModal = false"
+      @item-added="fetchItems"
+    />
+    <!-- Pass items to ItemList component -->
+    <ItemList
+      :items="filteredItems"
+      @view="showDetail"
+      @edit="prepareEdit"
+      @delete="confirmDelete"
+    />
+    <EditItemSection
+      v-if="editingItem"
+      :item="{ id: currentItemId, name: editName, quantity: editQuantity }"
+      @close="editingItem = false"
+      @item-updated="fetchItems"
+    />
+    <ItemDetailSection
+      v-if="showingDetail"
+      :item="detailItem"
+      @close="showingDetail = false"
+    />
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, computed } from "vue";
+import { useRouter } from "vue-router";
+import axios from "axios";
+import Swal from "sweetalert2";
+import jsPDF from "jspdf"; // Import jsPDF
+import AddItemModal from "./AddItemModal.vue";
+import ItemList from "./ItemList.vue";
+import EditItemSection from "./EditItemSection.vue";
+import ItemDetailSection from "./ItemDetailSection.vue";
+
+const router = useRouter();
+
+const username = ref(localStorage.getItem("username") || "");
+const items = ref([]);
+const showAddItemModal = ref(false);
+const searchQuery = ref("");
+const name = ref("");
+const quantity = ref(0);
+const editName = ref("");
+const editQuantity = ref(0);
+const currentItemId = ref(null);
+const detailItem = ref({});
+const editingItem = ref(false);
+const showingDetail = ref(false);
+
+// Fetch all items
+const fetchItems = async () => {
+  try {
+    const response = await axios.get("/api/items");
+    items.value = response.data;
+  } catch (error) {
+    console.error("Failed to fetch items:", error);
+  }
+};
+
+// Computed property to filter items based on search query
+const filteredItems = computed(() => {
+  if (!searchQuery.value) {
+    return items.value;
+  }
+  return items.value.filter((item) =>
+    item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+  );
+});
+
+const searchItems = async () => {
+  try {
+    const response = await axios.get("/api/items/search", {
+      params: { q: searchQuery.value },
+    });
+    items.value = response.data;
+  } catch (error) {
+    console.error("Failed to search items:", error);
+  }
+};
+
+const handleLogout = () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("username");
+  router.push("/login");
+};
+
+const addItem = async (item) => {
+  try {
+    await axios.post("/api/items", item);
+    fetchItems();
+  } catch (error) {
+    console.error("Failed to add item:", error);
+  }
+};
+
+const prepareEdit = (item) => {
+  editName.value = item.name;
+  editQuantity.value = item.quantity;
+  currentItemId.value = item.id;
+  editingItem.value = true;
+};
+
+const updateItem = async (item) => {
+  try {
+    await axios.put(`/api/items/${item.id}`, item);
+    fetchItems(); // Refresh data
+    editingItem.value = false;
+  } catch (error) {
+    console.error("Failed to update item:", error);
+  }
+};
+
+const showDetail = (item) => {
+  detailItem.value = item;
+  showingDetail.value = true;
+};
+
+const confirmDelete = (id) => {
+  Swal.fire({
+    title: "Are you sure?",
+    text: "You won't be able to revert this!",
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#d33",
+    cancelButtonColor: "#3085d6",
+    confirmButtonText: "Yes, delete it!",
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      await deleteItem(id);
+      Swal.fire("Deleted!", "The item has been deleted.", "success");
+    }
+  });
+};
+
+const deleteItem = async (id) => {
+  try {
+    await axios.delete(`/api/items/${id}`);
+    fetchItems();
+  } catch (error) {
+    console.error("Failed to delete item:", error);
+  }
+};
+
+const exportToCSV = () => {
+  let csvContent = "data:text/csv;charset=utf-8,";
+  csvContent += "Name,Quantity\n"; // Header
+
+  items.value.forEach((item) => {
+    csvContent += `${item.name},${item.quantity}\n`;
+  });
+
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", "stock_dashboard.csv");
+  document.body.appendChild(link);
+
+  link.click(); // Trigger download
+  document.body.removeChild(link); // Clean up
+};
+
+const exportToPDF = async () => {
+  const doc = new jsPDF();
+  doc.text("Stock Dashboard", 10, 10);
+
+  let rowIndex = 20;
+
+  for (const item of items.value) {
+    if (item.image) {
+      try {
+        const imageUrl = `/uploads/${item.image}`;
+        const image = await getImageAsBase64(imageUrl);
+        doc.addImage(image, "JPEG", 10, rowIndex, 50, 50);
+        rowIndex += 60; // Geser posisi teks setelah gambar
+      } catch (error) {
+        console.error(`Failed to load image for item ${item.name}:`, error);
+      }
+    }
+    doc.text(`${item.name} - Quantity: ${item.quantity}`, 10, rowIndex);
+    rowIndex += 10;
+
+    if (rowIndex > 280) {
+      doc.addPage();
+      rowIndex = 20;
+    }
+  }
+
+  doc.save("stock_dashboard.pdf");
+};
+
+const getImageAsBase64 = (url) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.src = url;
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/jpeg"));
+    };
+    img.onerror = reject;
+  });
+};
+
+const printPage = () => {
+  window.print();
+};
+
+onMounted(fetchItems);
+</script>
