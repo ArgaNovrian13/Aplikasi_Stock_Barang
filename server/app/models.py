@@ -6,6 +6,7 @@ class Item(db.Model):
     name = db.Column(db.String(100), nullable=False)
     quantity = db.Column(db.Integer, default=0)
     image = db.Column(db.String(200), nullable=True)
+    category = db.Column(db.String(200), nullable=True)
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
 
 class User(db.Model):

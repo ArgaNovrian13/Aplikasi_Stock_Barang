@@ -27,6 +27,19 @@
           />
         </div>
         <div class="mb-3">
+          <label for="category" class="form-label">Category</label>
+          <select
+            v-model="category"
+            class="form-control"
+            id="category"
+            required
+          >
+            <option value="electronics">Electronics</option>
+            <option value="food">Food</option>
+            <option value="office">Office Supplies</option>
+          </select>
+        </div>
+        <div class="mb-3">
           <label for="image" class="form-label">Image</label>
           <input
             type="file"
@@ -48,12 +61,14 @@ import Swal from "sweetalert2";
 
 const name = ref("");
 const quantity = ref(0);
+const category = ref("electronics"); // Default to "electronics"
 const imageFile = ref(null);
 
 const addItem = async () => {
   const formData = new FormData();
   formData.append("name", name.value);
   formData.append("quantity", quantity.value);
+  formData.append("category", category.value); // Include category
   if (imageFile.value) {
     formData.append("image", imageFile.value);
   }
@@ -72,13 +87,11 @@ const addItem = async () => {
       icon: "success",
       confirmButtonText: "OK",
     }).then(() => {
-      // Emit event to parent component
       $emit("item-added");
       $emit("close");
     });
   } catch (error) {
     console.error("Failed to add item:", error);
-    // Show error alert
     Swal.fire({
       title: "Error!",
       text: "Failed to add item. Please try again.",

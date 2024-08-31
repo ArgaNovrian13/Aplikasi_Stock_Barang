@@ -1,30 +1,48 @@
 <template>
-  <div class="container mt-5">
-    <h2 class="mb-4 text-center">Stock Dashboard</h2>
-    <button class="btn btn-danger" @click="handleLogout">Logout</button>
-    <h5 class="text-center mb-4">Hai, {{ username }}</h5>
+  <div class="container mt-3">
+    <h4 class="mb-3 text-center">Stock Dashboard</h4>
+    <button class="btn btn-danger btn-sm" @click="handleLogout">Logout</button>
+    <h6 class="text-center mb-3">Hai, {{ username }}</h6>
 
-    <div class="mb-4 d-flex justify-content-between">
+    <div
+      class="mb-3 d-flex justify-content-between align-items-center flex-wrap"
+    >
       <input
         v-model="searchQuery"
         @input="searchItems"
         type="text"
-        class="form-control"
+        class="form-control form-control-sm"
         placeholder="Search items..."
-        style="max-width: 300px"
+        style="max-width: 250px"
       />
-      <div>
-        <button class="btn btn-secondary me-2" @click="exportToCSV">
-          Export to CSV
+      <select
+        v-model="selectedCategory"
+        @change="filterByCategory"
+        class="form-select form-select-sm"
+        style="max-width: 150px"
+      >
+        <option value="">All Categories</option>
+        <option value="electronics">Electronics</option>
+        <option value="food">Food</option>
+        <option value="office">Office Supplies</option>
+      </select>
+      <div class="d-flex gap-2">
+        <button class="btn btn-secondary btn-sm" @click="exportToCSV">
+          CSV
         </button>
-        <button class="btn btn-secondary me-2" @click="exportToPDF">
-          Export to PDF
+        <button class="btn btn-secondary btn-sm" @click="exportToPDF">
+          PDF
         </button>
-        <button class="btn btn-secondary" @click="printPage">Print</button>
+        <button class="btn btn-secondary btn-sm" @click="printPage">
+          Print
+        </button>
       </div>
     </div>
 
-    <button class="btn btn-primary mb-4" @click="showAddItemModal = true">
+    <button
+      class="btn btn-primary btn-sm mb-3"
+      @click="showAddItemModal = true"
+    >
       Add New Item
     </button>
 
@@ -35,7 +53,7 @@
     />
     <!-- Pass items to ItemList component -->
     <ItemList
-      :items="filteredItems"
+      :items="paginatedItems"
       @view="showDetail"
       @edit="prepareEdit"
       @delete="confirmDelete"
@@ -51,6 +69,27 @@
       :item="detailItem"
       @close="showingDetail = false"
     />
+
+    <!-- Pagination Controls -->
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      <button
+        class="btn btn-secondary btn-sm"
+        :disabled="currentPage === 1"
+        @click="goToPage(currentPage - 1)"
+      >
+        Previous
+      </button>
+
+      <div>Page {{ currentPage }} of {{ totalPages }}</div>
+
+      <button
+        class="btn btn-secondary btn-sm"
+        :disabled="currentPage === totalPages"
+        @click="goToPage(currentPage + 1)"
+      >
+        Next
+      </button>
+    </div>
   </div>
 </template>
 
@@ -60,10 +99,10 @@ import { useRouter } from "vue-router";
 import axios from "axios";
 import Swal from "sweetalert2";
 import jsPDF from "jspdf"; // Import jsPDF
-import AddItemModal from "./AddItemModal.vue";
-import ItemList from "./ItemList.vue";
-import EditItemSection from "./EditItemSection.vue";
-import ItemDetailSection from "./ItemDetailSection.vue";
+import AddItemModal from "../components/Item/AddItemModal.vue";
+import ItemList from "../components/Item/ItemList.vue";
+import EditItemSection from "../components/Item/EditItemSection.vue";
+import ItemDetailSection from "../components/Item/ItemDetailSection.vue";
 
 const router = useRouter();
 
@@ -79,17 +118,27 @@ const currentItemId = ref(null);
 const detailItem = ref({});
 const editingItem = ref(false);
 const showingDetail = ref(false);
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
+const selectedCategory = ref("");
 
 // Fetch all items
 const fetchItems = async () => {
   try {
-    const response = await axios.get("/api/items");
+    const response = await axios.get("/api/items", {
+      params: {
+        category: selectedCategory.value,
+      },
+    });
     items.value = response.data;
   } catch (error) {
     console.error("Failed to fetch items:", error);
   }
 };
 
+const filterByCategory = () => {
+  fetchItems();
+};
 // Computed property to filter items based on search query
 const filteredItems = computed(() => {
   if (!searchQuery.value) {
@@ -98,6 +147,18 @@ const filteredItems = computed(() => {
   return items.value.filter((item) =>
     item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
   );
+});
+
+// Computed property for paginated items
+const paginatedItems = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  const end = start + itemsPerPage.value;
+  return filteredItems.value.slice(start, end);
+});
+
+// Calculate total pages
+const totalPages = computed(() => {
+  return Math.ceil(filteredItems.value.length / itemsPerPage.value);
 });
 
 const searchItems = async () => {
@@ -240,6 +301,10 @@ const getImageAsBase64 = (url) => {
 
 const printPage = () => {
   window.print();
+};
+
+const goToPage = (pageNumber) => {
+  currentPage.value = pageNumber;
 };
 
 onMounted(fetchItems);

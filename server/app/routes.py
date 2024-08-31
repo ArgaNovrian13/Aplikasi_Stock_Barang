@@ -7,7 +7,7 @@ main = Blueprint('main', __name__)
 
 # Konfigurasi untuk penyimpanan gambar
 UPLOAD_FOLDER = 'uploads/'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif','PNG','JPG','JPEG','GIF','webp'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
 # Pastikan folder uploads ada
 if not os.path.exists(UPLOAD_FOLDER):
@@ -19,6 +19,22 @@ def allowed_file(filename):
 
 @main.route('/items', methods=['GET'])
 def get_items():
+    category = request.args.get('category')
+    
+    if category:
+        items = Item.query.filter_by(category=category).all()  # Filter by category
+    else:
+        items = Item.query.all()
+
+    return jsonify([
+        {'id': item.id, 'name': item.name, 'quantity': item.quantity, 'category': item.category, 'image': item.image}
+        for item in items
+    ])
+
+    category = request.args.get('category')
+
+    if category:
+        item = Item.query.filter_by(category=category).all()
     items = Item.query.all()
     return jsonify([{'id': item.id, 'name': item.name, 'quantity': item.quantity, 'image': item.image} for item in items])
 
@@ -32,6 +48,7 @@ def search_items():
 def add_item():
     name = request.form.get('name')
     quantity = request.form.get('quantity')
+    category = request.form.get('category')
     
     # Mengunggah file gambar
     image = None
@@ -42,7 +59,7 @@ def add_item():
             file.save(os.path.join(UPLOAD_FOLDER, filename))
             image = filename
 
-    new_item = Item(name=name, quantity=quantity, image=image)
+    new_item = Item(name=name, quantity=quantity, image=image, category=category)
     db.session.add(new_item)
     db.session.commit()
 
@@ -53,9 +70,33 @@ def update_item(id):
     item = Item.query.get_or_404(id)
     name = request.form.get('name')
     quantity = request.form.get('quantity')
+    category = request.form.get('category')  # Get the category from form data
 
     item.name = name
     item.quantity = quantity
+    item.category = category
+
+    # Mengunggah file gambar baru jika ada
+    if 'image' in request.files:
+        file = request.files['image']
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file.save(os.path.join(UPLOAD_FOLDER, filename))
+            item.image = filename
+
+    db.session.commit()
+    return jsonify({'message': 'Item updated successfully'})
+
+    item = Item.query.get_or_404(id)
+    name = request.form.get('name')
+    quantity = request.form.get('quantity')
+    category = request.form.get('category')
+    image = request.form.get('image')
+
+    item.name = name
+    item.quantity = quantity
+    item.category = category
+    item.image = image
 
     # Mengunggah file gambar baru jika ada
     if 'image' in request.files:

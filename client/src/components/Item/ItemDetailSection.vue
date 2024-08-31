@@ -17,6 +17,7 @@
           <div class="col-md-6">
             <p><strong>Name:</strong> {{ item.name }}</p>
             <p><strong>Quantity:</strong> {{ item.quantity }}</p>
+            <p><strong>Category:</strong> {{ item.category }}</p>
           </div>
         </div>
         <button class="btn btn-secondary mt-3" @click="$emit('close')">

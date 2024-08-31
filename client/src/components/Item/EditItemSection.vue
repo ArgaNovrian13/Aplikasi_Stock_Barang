@@ -24,6 +24,21 @@
         />
       </div>
       <div class="mb-3">
+        <label for="editCategory" class="form-label">Category:</label>
+        <select
+          v-model="item.category"
+          id="editCategory"
+          class="form-select"
+          required
+        >
+          <option value="">Select a category</option>
+          <option value="electronics">Electronics</option>
+          <option value="food">Food</option>
+          <option value="office">Office Supplies</option>
+          <!-- Add other categories as needed -->
+        </select>
+      </div>
+      <div class="mb-3">
         <label for="editImage" class="form-label">Image:</label>
         <input
           type="file"
@@ -31,7 +46,7 @@
           class="form-control"
           @change="handleFileChange"
         />
-        <!-- Tampilkan gambar yang sudah ada jika tersedia -->
+        <!-- Display existing image if available -->
         <div v-if="item.image && !newImageUrl" class="mt-2">
           <img
             :src="`http://localhost:5000/api/uploads/${item.image}`"
@@ -40,7 +55,7 @@
             style="max-width: 200px"
           />
         </div>
-        <!-- Tampilkan preview gambar baru jika ada -->
+        <!-- Display preview of new image if available -->
         <div v-if="newImageUrl" class="mt-2">
           <img
             :src="newImageUrl"
@@ -61,9 +76,8 @@
     </form>
   </div>
 </template>
-
 <script setup>
-import { defineProps, defineEmits, reactive, ref } from "vue";
+import { defineProps, defineEmits, reactive, ref, watch } from "vue";
 import axios from "axios";
 import Swal from "sweetalert2";
 
@@ -74,15 +88,25 @@ const props = defineProps({
 const emit = defineEmits(["close", "item-updated"]);
 
 const item = reactive({ ...props.item });
-const newImageFile = ref(null); // Untuk menyimpan file gambar baru
-const newImageUrl = ref(null); // Untuk menyimpan URL preview gambar baru
+const newImageFile = ref(null); // To store new image file
+const newImageUrl = ref(null); // To store preview URL for new image
 
-// Tangani perubahan file gambar untuk preview
+// Watch for changes in the item prop to update local state
+watch(
+  () => props.item,
+  (newItem) => {
+    Object.assign(item, newItem);
+    newImageUrl.value = null; // Clear new image preview when item changes
+  },
+  { deep: true }
+);
+
+// Handle file change for new image preview
 const handleFileChange = (event) => {
   const file = event.target.files[0];
   if (file) {
     newImageFile.value = file;
-    newImageUrl.value = URL.createObjectURL(file); // Buat URL objek untuk preview gambar // Debug log untuk memeriksa URL
+    newImageUrl.value = URL.createObjectURL(file); // Create object URL for preview
   }
 };
 
@@ -91,6 +115,7 @@ const handleUpdate = async () => {
     const formData = new FormData();
     formData.append("name", item.name);
     formData.append("quantity", item.quantity);
+    formData.append("category", item.category);
     if (newImageFile.value) {
       formData.append("image", newImageFile.value);
     }
@@ -101,15 +126,14 @@ const handleUpdate = async () => {
       },
     });
 
-    // Tampilkan notifikasi SweetAlert
     Swal.fire({
       title: "Success!",
       text: "Item updated successfully.",
       icon: "success",
       confirmButtonText: "OK",
     }).then(() => {
-      emit("item-updated"); // Beritahu komponen induk untuk menyegarkan data
-      emit("close"); // Tutup modal
+      emit("item-updated");
+      emit("close");
     });
   } catch (error) {
     console.error("Failed to update item:", error);
@@ -120,9 +144,8 @@ const handleUpdate = async () => {
       confirmButtonText: "OK",
     });
   } finally {
-    // Hapus URL objek setelah digunakan untuk menghindari kebocoran memori
     if (newImageUrl.value) {
-      URL.revokeObjectURL(newImageUrl.value);
+      URL.revokeObjectURL(newImageUrl.value); // Clean up the object URL
     }
   }
 };
